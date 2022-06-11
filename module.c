@@ -13,6 +13,11 @@
 * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.             *
 \******************************************************************************/
 
+
+#ifdef M64P_STATIC_PLUGINS
+#define M64P_CORE_PROTOTYPES 1
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +78,7 @@ static m64p_handle l_ConfigRsp;
 
 #define VERSION_PRINTF_SPLIT(x) (((x) >> 16) & 0xffff), (((x) >> 8) & 0xff), ((x) & 0xff)
 
+#if (!M64P_STATIC_PLUGINS)
 ptr_ConfigOpenSection      ConfigOpenSection = NULL;
 ptr_ConfigDeleteSection    ConfigDeleteSection = NULL;
 ptr_ConfigSetParameter     ConfigSetParameter = NULL;
@@ -81,6 +87,7 @@ ptr_ConfigSetDefaultFloat  ConfigSetDefaultFloat;
 ptr_ConfigSetDefaultBool   ConfigSetDefaultBool = NULL;
 ptr_ConfigGetParamBool     ConfigGetParamBool = NULL;
 ptr_CoreDoCommand          CoreDoCommand = NULL;
+#endif
 
 NOINLINE void update_conf(const char* source)
 {
@@ -112,7 +119,13 @@ void DebugMessage(int level, const char *message, ...)
   va_end(args);
 }
 
-EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Context,
+EXPORT m64p_error CALL
+#if M64P_STATIC_PLUGINS
+PluginStartupRSP
+#else
+PluginStartup
+#endif
+(m64p_dynlib_handle CoreLibHandle, void *Context,
                                      void (*DebugCallback)(void *, int, const char *))
 {
     ptr_CoreGetAPIVersions CoreAPIVersionFunc;
@@ -127,8 +140,13 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     l_DebugCallback = DebugCallback;
     l_DebugCallContext = Context;
 
+#if (!M64P_STATIC_PLUGINS)
     /* attach and call the CoreGetAPIVersions function, check Config API version for compatibility */
     CoreAPIVersionFunc = (ptr_CoreGetAPIVersions) osal_dynlib_getproc(CoreLibHandle, "CoreGetAPIVersions");
+#else
+    CoreAPIVersionFunc = &CoreGetAPIVersions;
+#endif
+
     if (CoreAPIVersionFunc == NULL)
     {
         DebugMessage(M64MSG_ERROR, "Core emulator broken; no CoreAPIVersionFunc() function found.");
@@ -143,6 +161,7 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
         return M64ERR_INCOMPATIBLE;
     }
 
+#if (!M64P_STATIC_PLUGINS)
     /* Get the core config function pointers from the library handle */
     ConfigOpenSection = (ptr_ConfigOpenSection) osal_dynlib_getproc(CoreLibHandle, "ConfigOpenSection");
     ConfigDeleteSection = (ptr_ConfigDeleteSection) osal_dynlib_getproc(CoreLibHandle, "ConfigDeleteSection");
@@ -156,6 +175,8 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     if (!ConfigOpenSection || !ConfigDeleteSection || !ConfigSetParameter || !ConfigGetParameter ||
         !ConfigSetDefaultBool || !ConfigGetParamBool || !ConfigSetDefaultFloat)
         return M64ERR_INCOMPATIBLE;
+
+#endif
 
     /* get a configuration section handle */
     if (ConfigOpenSection("rsp-cxd4", &l_ConfigRsp) != M64ERR_SUCCESS)
@@ -198,10 +219,17 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     ConfigSetDefaultBool(l_ConfigRsp, "SupportCPUSemaphoreLock", 0, "Support CPU-RSP semaphore lock");
 
     l_PluginInit = 1;
+
     return M64ERR_SUCCESS;
 }
 
-EXPORT m64p_error CALL PluginShutdown(void)
+EXPORT m64p_error CALL
+#if M64P_STATIC_PLUGINS
+PluginShutdownRSP
+#else
+PluginShutdown
+#endif
+(void)
 {
     if (!l_PluginInit)
         return M64ERR_NOT_INIT;
@@ -210,7 +238,13 @@ EXPORT m64p_error CALL PluginShutdown(void)
     return M64ERR_SUCCESS;
 }
 
-EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *PluginType, int *PluginVersion, int *APIVersion, const char **PluginNamePtr, int *Capabilities)
+EXPORT m64p_error CALL
+#if M64P_STATIC_PLUGINS
+PluginGetVersionRSP
+#else
+PluginGetVersion
+#endif
+(m64p_plugin_type *PluginType, int *PluginVersion, int *APIVersion, const char **PluginNamePtr, int *Capabilities)
 {
     /* set version info */
     if (PluginType != NULL)
@@ -563,7 +597,9 @@ EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, pu32 CycleCount)
 
     signal(SIGILL, ISA_op_illegal);
 #ifndef _WIN32
+    /* TODO
     signal(SIGSEGV, seg_av_handler);
+
     for (SR[ra] = 0; SR[ra] < 0x80000000ul; SR[ra] += 0x200000) {
         recovered_from_exception = setjmp(CPU_state);
         if (recovered_from_exception)
@@ -576,6 +612,7 @@ EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, pu32 CycleCount)
             break;
     }
     su_max_address = (1 << SR[at]) - 1;
+    */
 #endif
 
     if (su_max_address < 0x1FFFFFul)
@@ -585,7 +622,13 @@ EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, pu32 CycleCount)
     return;
 }
 
-EXPORT void CALL RomClosed(void)
+EXPORT void CALL
+#if M64P_STATIC_PLUGINS
+RomClosedRSP
+#else
+RomClosed
+#endif
+(void)
 {
     GET_RCP_REG(SP_PC_REG) = 0x04001000;
 

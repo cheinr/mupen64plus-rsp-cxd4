@@ -131,7 +131,7 @@ LDFLAGS += $(SHARED)
 ifeq ($(CPU), X86)
   SSE ?= SSE2
   ifeq ($(SSE), SSE2)
-    CFLAGS   += -msse2
+    CFLAGS   += -msse2 -msimd128
     CPPFLAGS += -DARCH_MIN_SSE2
     POSTFIX = -sse2
   endif
@@ -201,7 +201,7 @@ OSX_SDK_PATH = $(shell xcrun --sdk macosx --show-sdk-path)
       LDFLAGS += -arch x86_64
       LDLIBS += -ldl
     else
-      CFLAGS += -pipe -mmmx -msse -fomit-frame-pointer -arch i686 -mmacosx-version-min=10.6 -isysroot $(OSX_SDK_PATH)
+      CFLAGS += -pipe -msimd128 -mmmx -msse -fomit-frame-pointer -arch i686 -mmacosx-version-min=10.6 -isysroot $(OSX_SDK_PATH)
       LDFLAGS += -arch i686
       LDLIBS += -ldl
     endif
@@ -212,7 +212,7 @@ endif
 ifneq ("$(APIDIR)","")
   CFLAGS += "-I$(APIDIR)"
 else
-  TRYDIR = ../../../mupen64plus-core/src/api
+  TRYDIR = ../../../mupen64plus-core-web-netplay/src/api
   ifneq ("$(wildcard $(TRYDIR)/m64p_types.h)","")
     CFLAGS += -I$(TRYDIR)
   else
@@ -240,7 +240,8 @@ endif
 endif
 
 # set base program pointers and flags
-CC        = $(CROSS_COMPILE)gcc
+CC        = $(CROSS_COMPILE)cc
+AR 	  = ar
 RM       ?= rm -f
 INSTALL  ?= install
 MKDIR ?= mkdir -p
@@ -295,6 +296,7 @@ $(shell $(MKDIR) $(OBJDIRS))
 
 # build targets
 TARGET = mupen64plus-rsp-cxd4$(POSTFIX).$(SO_EXTENSION)
+TARGET_STATIC = mupen64plus-rsp-cxd4$(POSTFIX).a
 
 targets:
 	@echo "Mupen64Plus-rsp-cxd4 makefile. "
@@ -324,7 +326,8 @@ targets:
 	@echo "    DEBUG=1       == add debugging symbols"
 	@echo "    V=1           == show verbose compiler output"
 
-all: $(TARGET)
+all: $(TARGET) $(TARGET_STATIC)
+static: $(TARGET_STATIC)
 
 install: $(TARGET)
 	$(INSTALL) -d "$(DESTDIR)$(PLUGINDIR)"
@@ -348,5 +351,8 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 
 $(TARGET): $(OBJECTS)
 	$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@
+
+$(TARGET_STATIC): $(OBJECTS)
+	$(AR) rcs $@ $^
 
 .PHONY: all clean install uninstall targets

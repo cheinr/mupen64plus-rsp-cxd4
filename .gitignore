@@ -8,3 +8,6 @@ obj
 *.obj
 *.dll
 *.exe
+
+*.a
+projects/unix/_obj-web/
