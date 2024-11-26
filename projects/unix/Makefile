@@ -124,7 +124,10 @@ endif
 ifeq ($(CPU), X86)
   SSE ?= SSE2
   ifeq ("$(SSE)", "SSE2")
-    CFLAGS   += -msse2 -msimd128
+    CFLAGS   += -msse2
+    ifeq ($(EMSCRIPTEN), 1)
+      CFLAGS += -msimd128
+    endif
     CPPFLAGS += -DARCH_MIN_SSE2
     POSTFIX = -sse2
   endif
